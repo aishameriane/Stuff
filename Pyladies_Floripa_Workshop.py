@@ -308,9 +308,9 @@ else:
 def convite():
     nome    = input("Oi! Qual o seu nome? ")
     convite = input("Oi, {}. Você quer tomar chá, café ou suco?".format(nome))
-    if convite.lower() == "chá" or "cha":
+    if convite.lower() == "chá" or convite.lower() == "cha":
         print("Eu adoro chá!")
-    elif convite.lower() == "café" or "cafe":
+    elif convite.lower() == "café" or convite.lower() == "cafe":
         print("Conheço um ótimo café!")
     elif convite.lower() == "suco":
         print("Suco parece ótimo!")
