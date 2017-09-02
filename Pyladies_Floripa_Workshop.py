@@ -285,3 +285,35 @@ def division():
     print("Divisão de {} por {}: {}".format(numero_1, numero_2, divisao))
     print("Quociente de {} por {}: {}".format(numero_1, numero_2, int(inteira)))
     print("Resto da divisão de {} por {}: {}".format(numero_1, numero_2, int(resto)))
+
+###############################################
+###############################################
+
+
+# Conditionals
+
+comida_na_geladeira = input("Tem comida na geladeira? ")
+tem_dinheiro = input("Tenho algum trocado? ")
+
+if comida_na_geladeira == "Sim":
+    print("Uhul, bora comer!!")
+elif tem_dinheiro == "Sim":
+    print("Vamos chamar pizza!")
+else:
+    print("Fico com fome :(")
+
+################################################
+################################################
+
+def convite():
+    nome    = input("Oi! Qual o seu nome? ")
+    convite = input("Oi, {}. Você quer tomar chá, café ou suco?".format(nome))
+    if convite.lower() == "chá" or "cha":
+        print("Eu adoro chá!")
+    elif convite.lower() == "café" or "cafe":
+        print("Conheço um ótimo café!")
+    elif convite.lower() == "suco":
+        print("Suco parece ótimo!")
+    else:
+        print("Tudo bem, respeito sua posição :)")
+
