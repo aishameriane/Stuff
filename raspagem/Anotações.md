@@ -121,3 +121,9 @@ string.ascii_uppercase
 # Biblioteca massa
 
 bokeh
+
+# Expressões Regulares
+
+ver no raspa08
+Ou livro do Aurélio Vargas sobre regex (ele tem site também)
+
