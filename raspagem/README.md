@@ -1,6 +1,9 @@
 # Curso de raspagem de dados públicos - UDESC
 23.09.2017
 
+<p align = "left">
+    <img src="https://imgs.xkcd.com/comics/compiling.png" alt="XKCD" width="350" align = "right">
+  
 Instrutor: Fernando Masanori - [Github](https://github.com/fmasanori/treinamento) [Página Pessoal](https://about.me/fmasanori)
 
 - Os arquivos Abraji.zip e Raspa.zip contém vários dos exemplos vistos no curso (elaborados pelo professor)
