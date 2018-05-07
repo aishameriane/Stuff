@@ -1,0 +1,200 @@
+---
+title: "Agregados Monetários"
+output: beamer_presentation
+---
+
+```{r, warning = FALSE, message = FALSE, echo = FALSE}
+chooseCRANmirror(graphics = FALSE, ind = 10)
+if (!require("pacman")) install.packages("pacman")
+pacman::p_load(devtools, ggplot2, BETS, stargazer, gridExtra, reshape2, RColorBrewer, scales, zoo, readxl, gtable, grid) 
+```
+
+```{r, warning = FALSE, message = FALSE, echo = FALSE}
+# Algumas variáveis auxiliares de datas, assim não precisamos alterar o código inteiro depois
+# Eu recomendo sempre usar uma data de fim única, pois algumas variáveis demoram mais para ser atualizadas do que outras
+inicio_82 <- "1982-01-01"
+inicio_95 <- "1995-01-01" # Estou usando isso para cortar as séries posteriormente
+fim       <- "2018-02-28"
+ano <- as.numeric(substr(inicio_82, start = 1, stop = 4))
+mes <- as.numeric(substr(inicio_82, start = 6, stop = 7))
+dia <- as.numeric(substr(inicio_82, start = 9, stop = 10))
+
+M1   <- BETS.get("1824", from = inicio_82, to = fim)
+BM   <- BETS.get("1785", from = inicio_82, to = fim)
+IPCA <- BETS.get("433",  from = inicio_82, to = fim)
+
+# Agora preciso converter os valores de M1 e BM para reais
+# Peguei aqui: http://diniznumismatica.blogspot.com.br/2017/10/converter-outros-padroes-monetarios-em.html
+# Cruzeiro Novo (de 01/02/1967 até 28/02/1986)
+# Faça a divisão por 1000^3 * 2750
+M1_1 <- window(M1, c(1982,01), c(1986,02))/((1000^3)*2750)
+BM_1 <- window(BM, c(1982,01), c(1986,02))/((1000^3)*2750)
+
+# Cruzado (de 01/03/1986 até 31/01/1989)
+# Faça a divisão por 1000^2 * 2750
+M1_2 <- window(M1, c(1986,03), c(1989,01))/((1000^2)*2750)
+BM_2 <- window(BM, c(1986,03), c(1989,01))/((1000^2)*2750)
+
+# Cruzado Novo e Cruzeiro (01/02/1989 a 31/07/1993)
+# Faça a divisão por 1000*2750
+M1_3 <- window(M1, c(1989,02), c(1993,07))/(1000*2750)
+BM_3 <- window(BM, c(1989,02), c(1993,07))/(1000*2750)
+
+# Cruzeiro real (01/08/1993 a 30/06/1994)
+# Faça a divisão por 2750
+M1_4 <- window(M1, c(1993,08), c(1994,06))/(2750)
+BM_4 <- window(BM, c(1993,08), c(1994,06))/(2750)
+
+# Último pedaço - plano real
+M1_5 <- window(M1, c(1994,07))
+BM_5 <- window(BM, c(1994,07))
+
+comb <- ts.union(M1_1, M1_2, M1_3, M1_4, M1_5)
+M1_final <- pmin(comb[,1], comb[,2], comb[,3], comb[,4], comb[,5], na.rm = TRUE)
+
+comb <- ts.union(BM_1, BM_2, BM_3, BM_4, BM_5)
+BM_final <- pmin(comb[,1], comb[,2], comb[,3], comb[,4], comb[,5], na.rm = TRUE)
+
+# Agora vou trabalhar com o deflator. Usei a metodologia do IPEA http://www.ipeadata.gov.br/iframe_transformacao.aspx?width=1474&height=701
+ipca2 <- IPCA # Salvo em uma nova variável só pro caso de dar errado não ter que baixar os dados de novo
+ipca2[1] <- 100 # Primeiro faço o primeiro valor ser a base e depois mudo de base porque eu aprendi assim
+
+# Transforma em índice
+for (i in 2:length(ipca2)){
+  ipca2[i] <- round(ipca2[(i-1)]*(1+ipca2[(i)]/100),2)
+}
+
+# Média geométrica
+for (i in 1:(length(ipca2)-1)){
+  ipca2[i] <- sqrt(ipca2[i]*ipca2[(i+1)])
+}
+
+# Muda a base para o último valor
+for (i in 1:length(ipca2)) {
+  ipca2[i] <- tail(ipca2, n=1)/ipca2[i]
+}
+
+ipca2 <- ts(ipca2,  start = c(ano, mes, dia), frequency = 12) # Converte para série temporal
+
+# Deflaciona M1 e BM
+M1_def <- M1_final * ipca2
+BM_def <- BM_final * ipca2
+
+# Criação de variáveis auxiliares
+Data1 <- seq(as.Date(inicio_82), length = length(M1_def), by = "1 month")
+M1_def2 <- window(M1_def, c(1995, 01))
+Data2 <- seq(as.Date(inicio_95), length = length(M1_def2), by = "1 month")
+
+df1 <- data.frame(Data1, M1_def/10^6)
+names(df1) <- c("Data", "M1")
+cores <- brewer.pal(6, "Dark2")
+
+breakpoints_1 <- c("fev 1986", "jun 1987", "jan 1989", "mar 1990", "fev 1991", "mai 1991")
+# Cada data entra separadamente
+bp1 <- c(which(as.yearmon(time(M1_def)) == breakpoints_1[1]), 
+         which(as.yearmon(time(M1_def)) == breakpoints_1[2]),
+         which(as.yearmon(time(M1_def)) == breakpoints_1[3]),
+         which(as.yearmon(time(M1_def)) == breakpoints_1[4]),
+         which(as.yearmon(time(M1_def)) == breakpoints_1[5]),
+         which(as.yearmon(time(M1_def)) == breakpoints_1[6]))
+
+p1 <- ggplot(df1, aes(Data))+
+        geom_line(aes(y = M1), colour = cores[1]) +
+        scale_x_date(date_breaks = "24 months", name = "Data", labels = date_format("%m-%Y"))+
+        scale_y_continuous(name = "M1 (R$ Milhões)")+
+        theme_bw() + theme(axis.text.x = element_text(angle=30, hjust = 1, size = 7))+
+        geom_vline(xintercept = Data1[bp1], linetype="longdash", size = 0.5, alpha = 0.35)+
+        annotate("text", x = Data1[bp1][1], y = 400, label = paste0("Plano Cruzado\n Fev 86"), size = 2.5)+
+        annotate("text", x = Data1[bp1][2], y = 350, label = paste0("Plano Bresser\n Jun 87"), size = 2.5)+
+        annotate("text", x = Data1[bp1][3], y = 300, label = paste0("Plano Verão\n Jan 89"), size = 2.5) +
+        annotate("text", x = Data1[bp1][4], y = 250, label = paste0("Plano Collor 1\n Mar 90"), size = 2.5)+
+        annotate("text", x = Data1[bp1][5], y = 200, label = paste0("Plano Collor 2\n Jan 91"), size = 2.5)+
+        annotate("text", x = Data1[bp1][6], y = 150, label = paste0("Plano Marcílio\n Mai 91"), size = 2.5)+
+        labs(title = "M1", subtitle = "Em milhões de reais de Mar/2018")
+
+# Faz o gráfico de 95 em diante        
+df2 <- data.frame(Data2, M1_def2/10^6)
+names(df2) <- c("Data", "M1")
+
+# Calcula as posições datas para colocar linhas verticais
+breakpoints_2 <- c("jan 1997", "jan 2008", "jan 2003")
+# Cada data entra separadamente
+bp2 <- c(which(as.yearmon(time(M1_def2)) == breakpoints_2[1]), 
+         which(as.yearmon(time(M1_def2)) == breakpoints_2[2]),
+         which(as.yearmon(time(M1_def2)) == breakpoints_2[3]))
+
+p2 <- ggplot(df2, aes(Data))+
+        geom_line(aes(y = M1), colour = cores[2]) +
+        scale_x_date(date_breaks = "24 months", name = "Data", labels = date_format("%m-%Y"))+
+        scale_y_continuous(name = "M1 (R$ Milhões)")+
+        theme_bw() + theme(axis.text.x = element_text(angle=30, hjust = 1, size = 10))+
+        geom_vline(xintercept = Data2[bp2], linetype="longdash", size = 0.5, alpha = 0.35)+
+        annotate("text", x = Data2[bp2][1]+10, y = 400, label = paste0("Início CPMF\n Jan 97"), size = 2.5)+
+        annotate("text", x = Data2[bp2][2]+10, y = 400, label = paste0("Fim CPMF\n Jan 08"), size = 2.5)+
+        annotate("text", x = Data2[bp2][3]+10, y = 400, label = paste0("Posse do Lula\n Jan 03"), size = 2.5)+
+        labs(title = "M1", subtitle = "Em milhões de reais de Mar/2018")
+
+mm <- M1_def/BM_def
+df3 <- data.frame(Data1, mm*100)
+
+p3 <- ggplot(df3, aes(Data1))+
+        geom_line(aes(y = mm), colour = cores[3]) +
+        scale_x_date(date_breaks = "24 months", name = "Data", labels = date_format("%m-%Y"))+
+        scale_y_continuous(name = "Multiplicador Monetário (%)")+
+        theme_bw() + theme(axis.text.x = element_text(angle=30, hjust = 1, size = 7))+
+        geom_hline(yintercept = 1, size = 0.5, alpha = 0.35)+
+        labs(title = "Multiplicador Monetário (M1/BM)", subtitle = "Média do período")
+
+compulsorio <- data.frame(read_excel("C:\\Users\\Aishameriane\\OneDrive\\Documentos\\Graduação Economia UDESC\\2018-1\\Economia Monetária UFSC - Roberto Meurer\\Agregados Monetários\\compulsorios2.xls"))
+df4 <- data.frame(seq(as.Date("1992-12-01"), length = length(compulsorio[,2]), by = "1 month"), compulsorio[,2])
+names(df4) <- c("Data", "compulsorio")
+
+p4 <- ggplot(df4, aes(Data))+
+        geom_line(aes(y = compulsorio), colour = cores[4]) +
+        scale_x_date(date_breaks = "24 months", name = "Data", labels = date_format("%m-%Y"))+
+        scale_y_continuous(name = "Alíquota (%)")+
+        theme_bw() + theme(axis.text.x = element_text(angle=30, hjust = 1, size = 7))+
+        labs(title = "Alíquota de Depósitos Compulsórios (%)")
+
+df5 <- data.frame(seq(as.Date("1992-12-01"), length = length(window(mm, c(1992,12))), by = "1 month"), window(mm, c(1992,12)), compulsorio[1:(length(window(mm, c(1992,12)))),2])
+names(df5) <- c("Data", "Multiplicador", "Compulsorio")
+
+p5 <- ggplot(df5, aes(Data))+
+        geom_line(aes(y = Compulsorio, colour = "Compulsório")) +
+        geom_line(aes(y = Multiplicador*0.6, colour = "Multiplicador")) +
+        scale_x_date(date_breaks = "24 months", name = "Data", labels = date_format("%m-%Y"))+
+        scale_y_continuous(name = "Compulsório (%)", sec.axis = sec_axis(~.*1.6, name = "Multiplicador (%)"))+
+        theme_bw() + 
+        theme(axis.text.x = element_text(angle=30, hjust = 1, size = 7), title = element_text(size = 9), legend.position = "bottom")+
+        labs(title = "Alíquota de Compulsórios e Multiplicador Monetário (%)", colour = "Série")
+```
+
+# M1 (1995-2018)
+
+```{r, echo = FALSE, warning = FALSE, message = FALSE}
+p2
+```
+
+# M1 (1982-2018)
+
+```{r, echo = FALSE, warning = FALSE, message = FALSE}
+p1
+```
+
+# Multiplicador Monetário
+
+```{r, echo = FALSE, warning = FALSE, message = FALSE}
+p3
+```
+
+# Alíquota de Compulsório
+
+```{r, echo = FALSE, warning = FALSE, message = FALSE}
+p4
+```
+
+# Relação do Multiplicador com o Compulsório
+
+```{r, echo = FALSE, warning = FALSE, message = FALSE}
+p5
+```
