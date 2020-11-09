@@ -1,0 +1,756 @@
+---
+title: "MC integration"
+author: "Aishameriane Schmidt"
+date: "Last update: March 24, 2018"
+output: html_document
+---
+
+# Examples of MC integration
+
+Carregando pacotes.
+
+```{r, warning = FALSE, message = FALSE}
+chooseCRANmirror(graphics = FALSE, ind = 10)
+if (!require("pacman")) install.packages("pacman")
+pacman::p_load(ggplot2,latex2exp,metRology,reshape2,gridExtra)
+```
+
+## Exemple 1: Integrating a deterministic function
+
+Assume that you want to integrate $I = \int_1^2 \exp(\theta)d\theta$  without using an analytical result.
+
+Reinterpret $I$ as an expectation with respect to $\theta \sim U(1,2)$ (chosen in a convenient way between the integration limits). We know that the density of $Uniform[a,b]$ is $\frac{1}{b-a, such that $p_U(\theta) = 1/(2-1)$. This gives us:
+
+Reinterprete $I$ com,o uma esperan?a em rela??o a $\theta \sim U(1,2)$ (escolhida de maneira conveniente dentro dos intervalos de integra??o). Sabemos que a densidade de uma 
+
+$$I = \int\limits_1^2 \exp\{\theta \} d\theta = (2-1)\int\limits_1^2 \exp\{\theta \}\frac{1}{2-1}d \theta = (2-1) \mathbb{E}_{\mathcal{U}}[\exp\{\theta\}]$$
+To approximate the integral, simulate $S$ observations of $\theta \sim U(1,2)$ and approximate $\mathbb{E}[\exp(\theta)]$ using the sample mean:
+
+$$\hat{I}_N = \frac{1}{N}\sum\limits_{i=1}^N \exp\left(\theta^{(i)}\right)$$
+Using $N=10.000$ we get $4.7080$ (this value might be different depending on the seed you are using), which is a reasonable approximation for the exact value `r exp(2)-exp(1)` ($\exp(2)-\exp(1)$).
+
+
+```{r}
+# Fiz the random seed
+set.seed(1234)
+
+# Draw 1000 values from a uniform(1,2) and store in a vector
+theta <- runif(1000,min = 1, max = 2)
+head(theta)
+
+# Compute the exponential
+exp_theta <- exp(theta)
+head(exp_theta)
+
+
+# Do the sum of the values and divide by S
+I_n <- (sum(exp_theta))/length(theta)
+I_n
+```
+
+## Exemplo 2: Cumulative density of the normal distribution
+
+The CDF of the standard normal is given by
+$$\Phi(\theta)=\int_{-\infty}^{x}\!\frac{1}{\sqrt{2\pi}}e^{\theta^2/2}\,d\theta$$
+but this does not have closed formula, which is an interesting candidate for us to solve using MC integration. If we sample $\theta^i\sim N(0,1)$, then
+
+$$
+\Phi(t)=\int_{-\infty}^{t}\!\frac{1}{\sqrt{2\pi}}e^{\theta^2/2}\,d\theta\approx\widehat{\Phi}_N(t)=\frac{1}{N}\sum_{i=1}^{N}1{\hskip -2.5 pt}\hbox{I}(\theta^{i}\leq t).
+$$
+
+Note that $\widehat{\Phi}_N(t)$ is a Binomial random variable, so its variance is given by $\Phi(t)(1-\Phi(t))/N$, because:
+
+$$
+Var[\widehat{\Phi}_N(t)] = Var \left[\frac{1}{N}\sum_{i=1}^{N}1{\hskip -2.5 pt}\hbox{I}(\theta^{i}\leq t) \right] = \frac{1}{N^2} \sum_{i=1}^{N} Var[1{\hskip -2.5 pt}\hbox{I}(\theta^{i}\leq t)] = \frac{1}{N^2} \sum_{i=1}^{N}\Phi(t)(1-\Phi(t))  = \frac{1}{N^2} N\Phi(t)(1-\Phi(t)) = \frac{1}{N} \Phi(t)(1-\Phi(t))
+$$
+
+Values of $t$ close to zero imply that the variance of $\widehat{\Phi}_N(t)$ is $1/4N$, so we need $200.000$ to get a precision of 4 digits.
+
+
+```{r}
+# seed
+set.seed(1235)
+
+# Vector for the theta values
+# Cria um vetor para theta
+theta<-rep(0,1)
+
+# fix t
+# Fixa um t
+t <- 0
+
+# Creates a vector for the indicator function
+# Cria um vetor para as indicadoras
+indicadora <- rep(0,200000)
+
+# Vector to store the draws of theta
+# Gera um vetor para guardar os thetas
+thetas<-rep(0,length(indicadora))
+
+# Get a random draw from a standard normal and compares with t
+# Gera um valor aleat?rio da normal padr?o e compara com o valor de t
+for (i in 1:length(indicadora)){
+  theta<-rnorm(1, mean = 0, sd = 1)
+  ifelse(theta <= t, indicadora[i] <- 1, indicadora[i]<-0)
+  thetas[i]<-theta
+}
+
+g_chapeu<-sum(indicadora)/length(indicadora)
+sigma_chapeu<-(1/length(indicadora))*sum((thetas-g_chapeu)^2)
+desv_pad_num<-sqrt(sigma_chapeu)/(sqrt(length(indicadora)))
+```
+
+If we compare the value from the normal table `r pnorm(t,mean=0,sd=1)` with our approximated value, `r sum(indicadora)/length(indicadora)`, the difference is `r pnorm(t,mean=0,sd=1) - sum(indicadora)/length(indicadora)`. The value of $\hat{\sigma}_g^2$ is `r round(sigma_chapeu,4)`, thus the numerical standard deviation, given by $\frac{\hat{\sigma}_g}{\sqrt{S}}$, is `r round(sqrt(sigma_chapeu)/(sqrt(length(indicadora))),4)`. 
+
+To know effectively how good this procedure (after all could be that we were lucky), we need to sample several times this value.
+
+```{r}
+# Cria um vetor para theta
+theta<-rep(0,1)
+
+# Fixa um t
+t <- 0
+
+# Cria um vetor para as indicadoras
+indicadora <- rep(0,5000)
+
+# Cria um vetor para as estimativas
+agregado <- rep(0,10000)
+
+# Gera 1000 valores aleat?rios da normal padr?o e compara com o valor de t
+# N?o ? muito eficiente colocar for dentro de for, mas ? o que tem pra hoje.
+for (j in 1:10000) {
+  for (i in 1:length(indicadora)){
+    theta<-rnorm(1, mean = 0, sd = 1)
+    ifelse(theta <= t, indicadora[i] <- 1, indicadora[i]<-0)
+  }
+agregado[j]<-sum(indicadora)/length(indicadora)
+}
+```
+
+The mean of our estimates is `r round(mean(agregado),4)` and the standard deviation is `r round(sd(agregado),4)`.
+
+We can see in the figure below how in fact the several realizations of $\hat{g}_S(\theta)$ have a similar behavior of a normal distribution centered in $0.5$:
+
+```{r, echo=FALSE}
+x<-seq(.45,.55,length.out = 10000)
+y<-agregado
+dados<-data.frame(x,y)
+
+p <- ggplot(dados, aes(x = y)) +
+        geom_histogram(color = "black", fill="white", binwidth = .001)+
+        ylab(TeX("$\\hat{\\Phi}_N(\\z)$")) +
+        xlab("") +
+        ggtitle(TeX("Estimated values of $P(Z \\leq 0)$")) +
+        scale_colour_brewer(palette="Set1") +
+        theme(axis.line = element_line(size=1, colour = "black"),
+              panel.grid.major = element_blank(),
+              panel.grid.minor = element_blank(),
+              panel.border = element_blank(),
+              panel.background = element_blank(),
+              plot.title=element_text(size = 20),
+              text=element_text(size = 16),
+              axis.text.x=element_text(colour="black", size = 12),
+              axis.text.y=element_text(colour="black", size = 12))
+p <- p + geom_vline(aes(xintercept=pnorm(0,mean=0,sd=1)),
+            color="blue", linetype="dashed", size=1)
+
+#pdf(file="C:\\Users\\Aishameriane\\OneDrive\\Documentos\\Mestrado Economia\\Bayesiana - 2017-01\\Materiais artigo\\Dados\\Imagens artigo\\fig-2_02.pdf")
+p
+#dev.off()
+```
+
+To see how to generate the Figure, check the code [here]().
+
+```{r}
+y<-agregado
+
+x1<-seq(.45,.55,length.out = 10)
+dados1<-data.frame(x1,y[1:10])
+
+x2<-seq(.45,.55,length.out = 100)
+dados2<-data.frame(x2,y[1:100])
+
+x3<-seq(.45,.55,length.out = 1000)
+dados3<-data.frame(x3,y[1:1000])
+
+x4<-seq(.45,.55,length.out = 10000)
+dados4<-data.frame(x4,y[1:10000])
+
+
+p1 <- ggplot(dados1, aes(x = y[1:10])) +
+        geom_histogram(color = "black", fill="white", binwidth = .001)+
+        ylab(TeX("$\\hat{\\Phi}_N(\\z)$")) +
+        xlab("") +
+        ggtitle(TeX("10 estimates for $P(Z \\leq 0)$")) +
+        scale_colour_brewer(palette="Set1") +
+        theme(axis.line = element_line(size=1, colour = "black"),
+              panel.grid.major = element_blank(),
+              panel.grid.minor = element_blank(),
+              panel.border = element_blank(),
+              panel.background = element_blank(),
+              plot.title=element_text(size = 10),
+              text=element_text(size = 9),
+              axis.text.x=element_text(colour="black", size = 8),
+              axis.text.y=element_text(colour="black", size = 8))
+p1 <- p1 + geom_vline(aes(xintercept=pnorm(0,mean=0,sd=1)),
+            color="blue", linetype="dashed", size=1) 
+
+p2 <- ggplot(dados2, aes(x = y[1:100])) +
+        geom_histogram(color = "black", fill="white", binwidth = .001)+
+        ylab(TeX("$\\hat{\\Phi}_N(\\z)$")) +
+        xlab("") +
+        ggtitle(TeX("100 estimates for $P(Z \\leq 0)$")) +
+        scale_colour_brewer(palette="Set1") +
+        theme(axis.line = element_line(size=1, colour = "black"),
+              panel.grid.major = element_blank(),
+              panel.grid.minor = element_blank(),
+              panel.border = element_blank(),
+              panel.background = element_blank(),
+              plot.title=element_text(size = 10),
+              text=element_text(size = 9),
+              axis.text.x=element_text(colour="black", size = 8),
+              axis.text.y=element_text(colour="black", size = 8))
+p2 <- p2 + geom_vline(aes(xintercept=pnorm(0,mean=0,sd=1)),
+            color="blue", linetype="dashed", size=1)
+
+p3 <- ggplot(dados3, aes(x = y[1:1000])) +
+        geom_histogram(color = "black", fill="white", binwidth = .001)+
+        ylab(TeX("$\\hat{\\Phi}_N(\\z)$")) +
+        xlab("") +
+        ggtitle(TeX("1.000 estimates for $P(Z \\leq 0)$")) +
+        scale_colour_brewer(palette="Set1") +
+        theme(axis.line = element_line(size=1, colour = "black"),
+              panel.grid.major = element_blank(),
+              panel.grid.minor = element_blank(),
+              panel.border = element_blank(),
+              panel.background = element_blank(),
+              plot.title=element_text(size = 10),
+              text=element_text(size = 9),
+              axis.text.x=element_text(colour="black", size = 8),
+              axis.text.y=element_text(colour="black", size = 8))
+p3 <- p3 + geom_vline(aes(xintercept=pnorm(0,mean=0,sd=1)),
+            color="blue", linetype="dashed", size=1)
+
+p4 <- ggplot(dados4, aes(x = y[1:10000])) +
+        geom_histogram(color = "black", fill="white", binwidth = .001)+
+        ylab(TeX("$\\hat{\\Phi}_N(\\z)$")) +
+        xlab("") +
+        ggtitle(TeX("10.000 estimates for $P(Z \\leq 0)$")) +
+        scale_colour_brewer(palette="Set1") +
+        theme(axis.line = element_line(size=1, colour = "black"),
+              panel.grid.major = element_blank(),
+              panel.grid.minor = element_blank(),
+              panel.border = element_blank(),
+              panel.background = element_blank(),
+              plot.title=element_text(size = 10),
+              text=element_text(size = 9),
+              axis.text.x=element_text(colour="black", size = 8),
+              axis.text.y=element_text(colour="black", size = 8))
+p4 <- p4 + geom_vline(aes(xintercept=pnorm(0,mean=0,sd=1)),
+            color="blue", linetype="dashed", size=1)
+
+#pdf(file="C:\\Users\\Aishameriane\\OneDrive\\Documentos\\Mestrado Economia\\Bayesiana - 2018-01\\Notas de Aula 2018\\Imagens notas de aula\\Cap 4\\Fig-4.004.pdf", width = 10, height = 3)
+grid.arrange(p1, p2, p3, p4, nrow = 2)
+#dev.off()
+```
+
+However, if we want to use $t$ less than $-4.5$, we need way more observations to get a decent estimate. This is because the occurence of these values is uncommon in the standard normal.
+
+
+```{r}
+# Seta a semente
+set.seed(1234)
+
+# Cria uma vari?vel para theta
+theta<-rep(0,1)
+
+# Fixa um t
+t <- -4.5
+
+# Cria um vetor para as indicadoras
+indicadora <- rep(0,10000)
+
+# Gera um valor aleat?rio da normal padr?o e compara com o valor de t
+for (i in 1:length(indicadora)){
+  theta<-rnorm(1, mean = 0, sd = 1)
+  ifelse(theta <= t, indicadora[i] <- 1, indicadora[i]<-0)
+}
+```
+
+Observe that in 10.000 realizations, we failed to find a value that is below $-4.5$, because the sum `sum(indicadora)` is equal to `r sum(indicadora)` (the indicator function). Although the probability is indeed low, this is not equal to zero: $\mathbb{P}(X \leq -4.5) =$ `r pnorm(t,mean=0,sd=1)` and then this result using the standard MC integration is not realiable. We can do the same previous experiment and repeat this process to check the estimates:
+
+
+```{r}
+# Seta a semente
+set.seed(1235)
+
+# Uma vari?vel para theta
+theta<-rep(0,1)
+
+# Fixa um t
+t <- -4.5
+
+# Cria um vetor para as indicadoras
+indicadora <- rep(0,10000)
+
+# Cria um vetor para ir salvando as estimativas
+agregado<-rep(0,10000)
+
+# Gera um valor aleat?rio da normal padr?o e compara com o valor de t
+for (j in 1:length(agregado)){
+  for (i in 1:length(indicadora)){
+    theta<-rnorm(1, mean = 0, sd = 1)
+    ifelse(theta <= t, indicadora[i] <- 1, indicadora[i]<-0)
+  }
+agregado[j]<-sum(indicadora)/length(indicadora)
+}
+```
+The mean of our estimates is `r round(mean(agregado),4)` and the standard deviation is `r round(sd(agregado),4)`, while the value we would like to find would be near $\mathbb{P}(X \leq -4.5) =$ `r pnorm(t,mean=0,sd=1)`.
+
+Again, we can plot the graph making several repetitions:
+
+```{r}
+x<-seq(.45,.55,length.out = 10000)
+y<-agregado
+dados<-data.frame(x,y)
+
+p <- ggplot(dados, aes(x = y)) +
+        geom_histogram(color = "black", fill="white", binwidth = .000001)+
+        ylab(TeX("$\\hat{\\Phi}_N(z)$")) +
+        xlab("") +
+        ggtitle(TeX("10.000 valores estimados para $P(Z \\leq -4.5)$")) +
+        scale_colour_brewer(palette="Set1") +
+        theme(axis.line = element_line(size=1, colour = "black"),
+              panel.grid.major = element_blank(),
+              panel.grid.minor = element_blank(),
+              panel.border = element_blank(),
+              panel.background = element_blank(),
+              plot.title=element_text(size = 20),
+              text=element_text(size = 16),
+              axis.text.x=element_text(colour="black", size = 12),
+              axis.text.y=element_text(colour="black", size = 12))
+p <- p + geom_vline(aes(xintercept=pnorm(-4.5,mean=0,sd=1)),
+            color="blue", linetype="dashed", size=1)
+
+#pdf(file="C:\\Users\\Aishameriane\\OneDrive\\Documentos\\Mestrado Economia\\Bayesiana - 2018-01\\Notas de Aula 2018\\Imagens notas de aula\\Cap 4\\Fig-4.004a.pdf", width = 10, height = 3)
+p
+#dev.off()
+```
+
+From the Figure above, we observe that in fact the estimates are too concentrated around zero.
+
+But then how can we compute the probability of rare events using MC methods? We can use **importance sampling**.
+
+### Importance sampling
+
+To get probabilities for rare events such as $\Phi(-4.5)$ using simple MC integration is rare, because we will get very few $\theta^i$ such that $1{\hskip -2.5 pt}\hbox{I}(\theta^{i}\leq -4.5)=1$, which implies that $\widehat{\Phi}_S(-4.5)=0$ even for higher values of $S$. But we can do a change of variable, for example, $v=\frac{1}{x}$:
+
+$$
+\int_{-\infty}^{-4.5}\!\frac{1}{\sqrt{2\pi}}e^{\theta^2/2}\,d\theta=\int^{0}_{\frac{-1}{4.5}}\!\frac{\phi(1/v)}{v^2}dv=\frac{1}{4.5}\int^{0}_{\frac{-1}{4.5}}\!\frac{\phi(1/v)}{v^2}p_U(v)dv
+$$
+
+We can sample $v_i\sim U(-1/4.5,0)$ so:
+
+$$
+\int_{-\infty}^{-4.5}\!\frac{1}{\sqrt{2\pi}}e^{\theta^2/2}\,d\theta\approx\widehat{\Phi}^U_S(-4.5)=\frac{1}{S}\sum_{i=1}^S\frac{\phi(1/v^i)}{4.5v^{i^2}}
+$$
+
+Note that the CDF of $v$, $p_U(v)=4.5$, is used in the denominator to compensate for the fact that we are not sampling from the original distribution (instead we use an 'alternative' distribution):
+
+```{r}
+# Define um tamanho de S e faz S retiradas de uma uniforme(-1/4.5, 0)
+S<-20
+vetor_v <- runif(S, min =(1/-4.5) , max = 0)
+
+# Calcula a aproxima??o
+numerador<- dnorm(1/vetor_v, mean=0, sd=1)
+denominador<- 4.5*vetor_v^2
+aproximacao<- (1/length(vetor_v))*sum(numerador/denominador)
+
+# Calcula o desvio padr?o
+sigma_chapeu<-(1/length(vetor_v))*sum((vetor_v-aproximacao)^2)
+desv_pad_num<-sqrt(sigma_chapeu)/(sqrt(length(vetor_v)))
+```
+
+Our estimated value is `r round(aproximacao, 4)`, while the true value is $\mathbb{P}(X \leq -4.5) =$ `r pnorm(t,mean=0,sd=1)`. We can also compute the numerical standard deviation:  $\frac{\hat{\sigma}_g}{\sqrt{S}}=$ `r round(desv_pad_num,4)`.
+
+Again, we can generate several estimates:
+
+```{r}
+# Define um tamanho de S e faz S retiradas de uma uniforme(-1/4.5, 0)
+S<-10000
+
+# Cria os vetores que v?o ser usados no la?o for
+vetor_v<-seq(0,S)
+numerador<-seq(0,S)
+denominador<-seq(0,S)
+estimativas<-seq(1,5000)
+
+for (j in 1:length(estimativas)){
+    vetor_v <- runif(S, min =(1/-4.5) , max = 0)
+    numerador<- dnorm(1/vetor_v, mean=0, sd=1)
+    denominador<- 4.5*vetor_v^2
+    aproximacao<- (1/length(vetor_v))*sum(numerador/denominador)
+  estimativas[j]<-aproximacao
+}
+
+mean(estimativas)
+```
+
+and plot the graph:
+
+```{r}
+x<-seq(.45,.55,length.out = 5000)
+y<-estimativas
+dados<-data.frame(x,y)
+
+p <- ggplot(dados, aes(x = y)) +
+        geom_histogram(color = "black", fill="white", binwidth = .00000001)+
+        ylab(TeX("$\\hat{\\Phi}_N(z)$")) +
+        xlab("") +
+        ggtitle(TeX("Estimando $P(Z \\leq -4.5)$ via amostragem por import?ncia")) +
+        scale_colour_brewer(palette="Set1") +
+        theme(axis.line = element_line(size=1, colour = "black"),
+              panel.grid.major = element_blank(),
+              panel.grid.minor = element_blank(),
+              panel.border = element_blank(),
+              panel.background = element_blank(),
+              plot.title=element_text(size = 12),
+              text=element_text(size = 12),
+              axis.text.x=element_text(colour="black", size = 12),
+              axis.text.y=element_text(colour="black", size = 12))
+
+p <- p + geom_vline(aes(xintercept=pnorm(-4.5,mean=0,sd=1)),
+            color="red", linetype="dashed", size=1)
+
+#pdf(file="C:\\Users\\Aishameriane\\OneDrive\\Documentos\\Mestrado Economia\\Bayesiana - 2018-01\\Notas de Aula 2018\\Imagens notas de aula\\Cap 4\\Fig-4.004b.pdf")
+p
+#dev.off()
+```
+
+Here are the graphs for different sample sizes:
+
+```{r}
+y<-estimativas
+
+x1<-seq(.45,.55,length.out = 50)
+dados1<-data.frame(x1,y[1:50])
+
+x2<-seq(.45,.55,length.out = 500)
+dados2<-data.frame(x2,y[1:500])
+
+x3<-seq(.45,.55,length.out = 1000)
+dados3<-data.frame(x3,y[1:1000])
+
+x4<-seq(.45,.55,length.out = 5000)
+dados4<-data.frame(x4,y[1:5000])
+
+
+p1 <- ggplot(dados1, aes(x = y[1:50])) +
+        geom_histogram(color = "black", fill="white", binwidth = .00000001)+
+        ylab(TeX("$\\hat{\\Phi}_N(\\z)$")) +
+        xlab("") +
+        ggtitle(TeX("50 estimates of $P(Z \\leq -4.5)$ using IS")) +
+        scale_colour_brewer(palette="Set1") +
+        theme(axis.line = element_line(size=1, colour = "black"),
+              panel.grid.major = element_blank(),
+              panel.grid.minor = element_blank(),
+              panel.border = element_blank(),
+              panel.background = element_blank(),
+              plot.title=element_text(size = 8),
+              text=element_text(size = 9),
+              axis.text.x=element_text(colour="black", size = 8),
+              axis.text.y=element_text(colour="black", size = 8))
+p1 <- p1 + geom_vline(aes(xintercept=pnorm(-4.5,mean=0,sd=1)),
+            color="red", linetype="dashed", size=1) 
+
+p2 <- ggplot(dados2, aes(x = y[1:500])) +
+        geom_histogram(color = "black", fill="white", binwidth = .00000001)+
+        ylab(TeX("$\\hat{\\Phi}_N(\\z)$")) +
+        xlab("") +
+        ggtitle(TeX("500 estimates of $P(Z \\leq -4.5)$ using IS")) +
+        scale_colour_brewer(palette="Set1") +
+        theme(axis.line = element_line(size=1, colour = "black"),
+              panel.grid.major = element_blank(),
+              panel.grid.minor = element_blank(),
+              panel.border = element_blank(),
+              panel.background = element_blank(),
+              plot.title=element_text(size = 8),
+              text=element_text(size = 9),
+              axis.text.x=element_text(colour="black", size = 8),
+              axis.text.y=element_text(colour="black", size = 8))
+p2 <- p2 + geom_vline(aes(xintercept=pnorm(-4.5,mean=0,sd=1)),
+            color="red", linetype="dashed", size=1)
+
+p3 <- ggplot(dados3, aes(x = y[1:1000])) +
+        geom_histogram(color = "black", fill="white", binwidth = .00000001)+
+        ylab(TeX("$\\hat{\\Phi}_N(\\z)$")) +
+        xlab("") +
+        ggtitle(TeX("1.000 estimates of $P(Z \\leq -4.5)$ using IS")) +
+        scale_colour_brewer(palette="Set1") +
+        theme(axis.line = element_line(size=1, colour = "black"),
+              panel.grid.major = element_blank(),
+              panel.grid.minor = element_blank(),
+              panel.border = element_blank(),
+              panel.background = element_blank(),
+              plot.title=element_text(size = 8),
+              text=element_text(size = 9),
+              axis.text.x=element_text(colour="black", size = 8),
+              axis.text.y=element_text(colour="black", size = 8))
+p3 <- p3 + geom_vline(aes(xintercept=pnorm(-4.5,mean=0,sd=1)),
+            color="red", linetype="dashed", size=1)
+
+p4 <- ggplot(dados4, aes(x = y[1:5000])) +
+        geom_histogram(color = "black", fill="white", binwidth = .00000001)+
+        ylab(TeX("$\\hat{\\Phi}_N(\\z)$")) +
+        xlab("") +
+        ggtitle(TeX("5.000 estimates of $P(Z \\leq -4.5)$ using IS")) +
+        scale_colour_brewer(palette="Set1") +
+        theme(axis.line = element_line(size=1, colour = "black"),
+              panel.grid.major = element_blank(),
+              panel.grid.minor = element_blank(),
+              panel.border = element_blank(),
+              panel.background = element_blank(),
+              plot.title=element_text(size = 8),
+              text=element_text(size = 9),
+              axis.text.x=element_text(colour="black", size = 8),
+              axis.text.y=element_text(colour="black", size = 8))
+p4 <- p4 + geom_vline(aes(xintercept=pnorm(-4.5,mean=0,sd=1)),
+            color="red", linetype="dashed", size=1)
+#pdf(file="C:\\Users\\Aishameriane\\OneDrive\\Documentos\\Mestrado Economia\\Bayesiana - 2018-01\\Notas de Aula 2018\\Imagens notas de aula\\Cap 4\\Fig-4.004.pdf", width = 10, height = 3)
+grid.arrange(p1, p2, p3, p4, nrow = 2)
+#dev.off()
+```
+
+## Exemple 3 - Cauchy
+
+**Obs:** numerical values in the text are obtained directly using R, check the code [here]() to see the procedure. This example is an adaptation from Robert and Casella's MC methods book.
+
+We want to estimate the probability that a random variable $X$ with a Cauchy distribution with parameters $(0,1)$ is bigger than $2$. In other words, for $X \sim \mathcal{C}(0,1)$ we want to compute $\mathbb{P}(X \geq 2)$:
+
+\begin{equation}\tag{23}
+p = \mathbb{P}(X \geq 2) = \int\limits_2^\infty \frac{1}{\pi(1+x^2)}dx
+\end{equation}
+
+Imagine that the values in (23) are not easily obtained. Then we can use the idea of IS and for a random sample $X_1, \cdots, X_m$ of the distribution of $X$, we can approximate $p$ with different ways.
+
+### Method 1
+
+\begin{equation}\tag{24}
+p \approx \hat{p}_1 = \frac{1}{m}\sum\limits_{j=1}^m \mathbb{I}_{X_j > 2}
+\end{equation}
+
+The variance of the estimator $\hat{p}_1$ can be obtained as follows:
+
+\begin{equation}\tag{25}
+Var[\hat{p}_1] = Var\left[\frac{1}{m}\sum\limits_{j=1}^m \mathbb{I}_{X_j > 2} \right] = \frac{1}{m^2} \sum\limits_{j=1}^m \left( Var[\mathbb{I}_{X_j > 2]} \right) = \frac{1}{m^2}mp(1-p) = \frac{p(1-p)}{m}
+\end{equation}
+
+Since $\mathbb{P}(X \geq 2)=$ `r round(1-pcauchy(2,0,1),2)`, the variance of the estimator in (24) will be given by $Var[\hat{p}_1] =$ `r round((round(1-pcauchy(2,0,1),2)*round(pcauchy(2,0,1),2)),3)` $/m$.
+
+### Method 2
+
+To have something with a smaller variance than the estimator in (24), we can change our estimator. Considering that the Cauchy(0,1) distribution is symmetric around zero, an estimate for $p$ would be:
+
+\begin{equation}\tag{26}
+p \approx \hat{p}_2 = \frac{1}{2m}\sum\limits_{j=1}^m \mathbb{I}_{|X_j| > 2}
+\end{equation}
+
+\begin{equation}\tag{27}
+Var[\hat{p}_2] = Var\left[\frac{1}{2m}\sum\limits_{j=1}^m \mathbb{I}_{|X_j| > 2} \right] = \frac{1}{4m^2} \sum\limits_{j=1}^m \left( Var[\mathbb{I}_{|X_j| > 2]} \right) = \frac{1}{4m^2}\cdot 2mp(1-2p) = \frac{p(1-2p)}{2m}
+\end{equation}
+
+Using again the fact that $\mathbb{P}(X \geq 2)=$ `r round(1-pcauchy(2,0,1),2)`, the variance of the estimator in (25) is given by $Var[\hat{p}_2] =$ `r round(round(1-pcauchy(2,0,1),2)*(1-2*round(1-pcauchy(2,0,1),2))/2,3)` $/m$.
+
+### Method 3
+
+The two previous methods have some inefficiency: they generate values outiside the support we are interested in, which is  $[2, + \infty)$. There "extra" terms are irrelevant for approximating $p$.
+
+Knowing that $\mathbb{P}(X > 2) = 1-\mathbb{P}(X < 2)$ and $\mathbb{P}(X > 2|X>0) = \frac{1}{2}-\mathbb{P}(0< X < 2)$, we can think about writing $p$ as:
+
+\begin{equation}\tag{28}
+p = \frac{1}{2} - \int\limits_0^2 \frac{1}{\pi(1+x^2)}dx
+\end{equation}
+
+Consider now a random variable $X \sim \mathcal{U}(0,2)$. We know that $f_X(x)=\frac{1}{2-0}=\frac{1}{2}$. Then, multiplying the integral in (28) by $\frac{2}{2}$, we have:
+
+\begin{equation}\tag{29}
+p = \frac{1}{2} - \int\limits_0^2 \overbrace{\frac{2}{\pi(1+x^2)}}^{h(x)}\underbrace{\frac{1}{2}}_{\text{fdp de }X}dx = \frac{1}{2} - \int\limits_0^2 h(x) f_X(x) dx = \frac{1}{2} - \mathbb{E}[h(X)]
+\end{equation}
+
+The integral in (29) can be seen as an expectation of a function of $X$, i.e., using the unconcious statistician lemma we can see $p$ as an expectation. This means that we can use the LLN to approximate this using a sample mean:
+
+\begin{equation*}
+\hat{p}_3 = \frac{1}{2} - \frac{1}{m} \sum\limits_{j=1}^m h(U_j) = \frac{1}{2} - \frac{1}{m} \sum\limits_{j=1}^m \frac{2}{\pi}(1+U_j^2)
+\end{equation*}
+
+where $U_j \sim \mathcal{U}(0,2)$. To compute the variance of $\hat{p}_3$, we do:
+
+\begin{align*}
+Var(\hat{p}_3) &= 0 - Var\left(\frac{1}{m} \sum\limits_{j=1}^m h(U_j) \right)\\
+&= \frac{1}{m^2} \sum\limits_{j=1}^m Var(h(U_j)) \\
+&= \frac{1}{m^2} \cdot m Var(h(U_j)) \\
+&= \frac{1}{m} Var(h(U_j))
+\end{align*}
+
+So we can use $Var(X) = \mathbb{E}(X^2)- \mathbb{E}(X)^2$ the expression in the expression above to obtain:
+
+\begin{equation}\tag{30}
+Var(\hat{p}_3) = \frac{1}{m} \mathbb{E}(h^2(U))- \mathbb{E}(h(U))
+\end{equation}
+
+Since $U \sim \mathcal{U}(0,2)$, these expectations are obtained computing integrals, for which we use trigonometric functions. Recall that $\int 1/(a^2+x^2) = (1/a) tan^{-1}(x/a) + c$, and compute the second integral as follows:
+
+\begin{align*}
+\mathbb{E}[h(U)] &= \int\limits_0^2 \underbrace{\frac{2}{\pi(1^2 + u^2)}}_{h(U)}\underbrace{\frac{1}{2}}_{\text{fdp de }U} du\\
+&= \frac{1}{\pi}\int\limits_0^2 \frac{1}{\pi(1^2 + u^2)} du \\
+&= \frac{1}{\pi}(tg^-1(u))\Big|_0^2\\
+&= \frac{1}{\pi}tg^{-1}(2)
+\end{align*}
+
+Thus, $\mathbb{E}[h(U)] =$ `r round((1/pi)*atan(2),4)` so $\left(\mathbb{E}[h(U)]\right)^2=$ `r round(((1/pi)*atan(2))^2,4)`.
+
+In a similar manner, 
+
+\begin{align*}
+\mathbb{E}[h^2(U)] &= \int\limits_0^2 \underbrace{\left(\frac{2}{\pi(1^2 + u^2)}\right)^2}_{h^2(U)}\underbrace{\frac{1}{2}}_{\text{fdp de }U} du = \frac{2+5tg^{-1}(2)}{5\pi^2}
+\end{align*}
+
+Therefore, $\mathbb{E}[h^2(U)] =$ `r round((2+5*atan(2))/(5*pi^2),4)` and we get $Var(\hat{p}_3) = \frac{1}{m} \mathbb{E}(h^2(U))- \mathbb{E}(h(U)) =$ `r  round(round((2+5*atan(2))/(5*pi^2),4)-round(((1/pi)*atan(2))^2,4),4)` $/m$.
+
+### Method 4
+
+Consider now a r.v. $Y \sim \mathcal{U}(0,1/2)$. We know that $f_Y(y)=\frac{1}{1/2-0}=\frac{1}{1/2}=2$. We can do a transformation of variables in expression (23) using $Y=\frac{1}{X}$, which gives us
+
+\begin{align*}
+x &= \frac{1}{y}\\
+dx &= -\frac{1}{y^{2}}=-y^{-2}\\
+x=1/2 & \Rightarrow y=2\\
+x\to \infty &\Rightarrow y=0
+\end{align*}
+
+Since the integration limits need to swap places, the integral receives a negative sign that will cancel out with the negative sign of $dx$, so (23) will be:
+
+\begin{align*}
+p = \mathbb{P}(X \geq 2) = \mathbb{P}(0 < Y < 1/2) = \int\limits_0^{\frac{1}{2}} \frac{y^{-2}}{\pi(1+y^{-2})}dy
+\end{align*}
+
+Note that $\frac{y^{-2}}{(1+y^{-2})} = \frac{1}{y^{2}(1+y^{-2})} = \frac{1}{y^{2}+y^{0}} = \frac{1}{1+ y^{2}}$ which allows us to express the above expression as:
+
+\begin{align*}
+p = \int\limits_0^{\frac{1}{2}} \frac{1}{\pi(1+y^{2})}dy
+\end{align*}
+
+Take $h(Y) = \frac{2}{\pi(1+y^2)}$. So $\frac{1}{4}h(Y) = \frac{2}{4\pi(1+y^2)} = \frac{1}{2}\frac{1}{\pi(1+y^2)}$, which is the expression of $p$. Therefore:
+
+\begin{equation}\tag{31}
+p = \int\limits_0^{\frac{1}{2}} \frac{1}{\pi(1+y^{2})}dy = \int\limits_0^{\frac{1}{2}} \frac{1}{\pi(1+y^{2})}\frac{2}{\underbrace{2}_{\text{fdp de }Y}}dy = 2\cdot\mathbb{E}\left(\frac{1}{4}h(Y)\right) =\frac{1}{2}\mathbb{E}(h(Y))
+\end{equation}
+
+The expectation in (31) can be approximated by a sample average:
+
+\begin{equation}\tag{32}
+\hat{p}_4 = \frac{1}{4m}\sum\limits_{j=1}^m h(Y_j)
+\end{equation}
+
+Using the same method, we compute the variance of $\hat{p}_4$:
+
+\begin{equation*}
+Var[\hat{p}_4] = \frac{1}{16m^2} \sum\limits_{j=1}^m Var[h(Y_j)] = \frac{m}{16m^2} Var[h(Y_j)] = \frac{Var[h(Y_j)]}{16m}
+\end{equation*}
+
+Since $Var[h(Y_j)] =\mathbb{E}[h^2(Y_j)] -\mathbb{E}[h(Y_j)]^2$, we use integration by parts to find each piece:
+
+\begin{align*}
+\mathbb{E}[h(Y_j)] = \frac{4}{\pi}tg^{-1}(1/2)\\
+\mathbb{E}[h^2(Y_j)] = \frac{4(2+5 tg^{-1}(1/2))}{5\pi^2}
+\end{align*}
+
+Thus, $Var[h(Y_j)] =\mathbb{E}[h^2(Y_j)] -\mathbb{E}[h(Y_j)]^2=$ `r (round((4*(2+5*atan(1/2)))/(5*pi^2),4) - round(((4/pi)*atan(1/2))^2,4))/16` $/m$.
+
+## Exemple 4 - t distribution
+
+Suppose that we want to sample from $\theta \sim t(\nu, 0, 1)$ to compute:
+
+ \begin{equation*}
+ \int_{2.1}^\infty \theta^5 p(\theta|y)d\theta
+ \end{equation*}
+
+ where
+
+ \begin{equation*}
+ p(\theta|y) = \frac{\Gamma\left(\frac{\nu + 1}{2}\right)}{\sqrt{\nu \pi}\Gamma\left(\frac{\nu}{2}\right)}\left(1+\frac{\theta^2}{\nu} \right)^{-\frac{\nu+1}{2}}
+ \end{equation*}
+
+We can compare different importance sampling functions
+
+1. Cauchy: $\mathcal{C}(0,1)$;
+2. Normal: $\mathcal{N}(0,1)$;
+3. Uniforme: $\mathcal{U}(0, 1/2.1)$.
+
+```{r}
+set.seed(1234)
+
+# Par?metros
+Esse <- 1000000  # Size of the MC sample
+den  <- 1:Esse   # Auxiliary vector
+cut  <- 2.1      # Integration limit
+df   <- 12       # Degrees of freedom
+
+############ Using the original density ####################
+t  <- rt(n = Esse, df = df)  # Sample S values from the t distribution
+tt <- mean((t^5)*(t>cut))    # Estimate
+tp <- cumsum((t^5)*(t>cut))/den  # Evolution of the estimate when S grows
+
+
+############ Usando the gaussian density ####################
+z   <- rnorm(n = Esse, mean = 0, sd = 1) # Draw S values from the normal distribution
+fz  <- (z^5)*(dt(x = z, df = df)/dnorm(z))*(z>cut) # Evaluate the function in the realizations
+zz  <- mean(fz) # MC estimate
+zp  <- cumsum(fz)/den   # Evolution of the estimate when S grows
+
+
+############ Using the Cauchy dist ####################
+c   <- rcauchy(n = Esse, location = 0, scale = 1) # Sample from the Cauchy
+fc  <- (c^5)*(dt(x=c, df = df)/dcauchy(c, location = 0, scale = 1))*(c>cut) # Evaluate the function in the realizations
+cc  <- mean(fc) # MC estimate
+cp  <- cumsum(fc)/den   # Evolution of the estimate when S grows
+
+
+############ Using a t distribution with 1 DF ####################
+c1   <- rt(n = Esse, df = 1) # The t with 1 DF is equal to a Cauchy
+fc1  <- (c1^5)*(dt(x=c1, df = df)/dt(c1, df= 1))*(c1>cut) # Evaluate the function in the realizations
+cc1  <- mean(fc1)
+cp1  <- cumsum(fc1)/den   # Evolution of the estimate when S grows
+
+
+############ Usando a densidade uniforme ####################
+u    <- (1/cut)*runif(n = Esse) # Sample from the uniform (0,1/2.1) is equivalent to sample from the standard uniform and divide by 2.1 (Greenberg page 64)
+u7   <- u^(-7)
+tu   <- dt(1/u, df = df)
+fu   <- u7*tu                   # Evaluate the function in the realizations
+uu   <- mean(fu)                # MC estimate
+up   <- cumsum(fu)/(cut*den)      # Evolution of the estimate when S grows
+
+
+### Plota os gr?ficos
+data_frame <- data.frame(den/10^5, tp, zp, cp, cp1, up)
+names(data_frame) <- c("Density", "t", "Normal", "Cauchy1", "Cauchy2", "Uniform")
+df2 <- melt(data = data_frame, id.vars = "Density")
+
+p <- ggplot(df2, aes(Density, value, colour = variable)) +
+  geom_line(alpha = 1, aes(linetype = variable))+
+  labs(title="", y = "Estimate", x= "Iterations (x 10^5)", color = "Density")+
+  scale_colour_brewer(palette = "Set1") +
+  theme_bw()
+
+p <- p + labs(linetype = "Density") 
+p <- p + labs(colour='Density')
+p <- p + theme(legend.position="top", legend.key.size = unit(.8, "cm"), axis.text.x = element_text(angle=25, hjust = 1, size = 10), axis.title.y = element_text(size = 12), axis.title.x = element_text(size = 12))
+
+
+#pdf(file="C:\\Users\\Aishameriane\\OneDrive\\Documentos\\Mestrado Economia\\Bayesiana - 2018-01\\Notas de Aula 2018\\Imagens notas de aula\\Cap 4\\Fig-4.006.pdf", width = 10, height = 6)
+p
+#dev.off()
+```
