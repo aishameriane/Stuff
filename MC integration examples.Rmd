@@ -19,9 +19,8 @@ pacman::p_load(ggplot2,latex2exp,metRology,reshape2,gridExtra)
 
 Assume that you want to integrate $I = \int_1^2 \exp(\theta)d\theta$  without using an analytical result.
 
-Reinterpret $I$ as an expectation with respect to $\theta \sim U(1,2)$ (chosen in a convenient way between the integration limits). We know that the density of $Uniform[a,b]$ is $\frac{1}{b-a, such that $p_U(\theta) = 1/(2-1)$. This gives us:
+Reinterpret $I$ as an expectation with respect to $\theta \sim U(1,2)$ (chosen in a convenient way between the integration limits). We know that the density of $Uniform[a,b]$ is $\frac{1}{b-a}$, such that $p_U(\theta) = 1/(2-1)$. This gives us:
 
-Reinterprete $I$ com,o uma esperan?a em rela??o a $\theta \sim U(1,2)$ (escolhida de maneira conveniente dentro dos intervalos de integra??o). Sabemos que a densidade de uma 
 
 $$I = \int\limits_1^2 \exp\{\theta \} d\theta = (2-1)\int\limits_1^2 \exp\{\theta \}\frac{1}{2-1}d \theta = (2-1) \mathbb{E}_{\mathcal{U}}[\exp\{\theta\}]$$
 To approximate the integral, simulate $S$ observations of $\theta \sim U(1,2)$ and approximate $\mathbb{E}[\exp(\theta)]$ using the sample mean:
@@ -48,7 +47,7 @@ I_n <- (sum(exp_theta))/length(theta)
 I_n
 ```
 
-## Exemplo 2: Cumulative density of the normal distribution
+## Exemple 2: Cumulative density of the normal distribution
 
 The CDF of the standard normal is given by
 $$\Phi(\theta)=\int_{-\infty}^{x}\!\frac{1}{\sqrt{2\pi}}e^{\theta^2/2}\,d\theta$$
@@ -160,7 +159,7 @@ p
 #dev.off()
 ```
 
-To see how to generate the Figure, check the code [here]().
+To see how to generate the Figure, check the code [here](https://github.com/aishameriane/Stuff/blob/master/MC%20integration%20examples.Rmd).
 
 ```{r}
 y<-agregado
@@ -525,7 +524,7 @@ grid.arrange(p1, p2, p3, p4, nrow = 2)
 
 ## Exemple 3 - Cauchy
 
-**Obs:** numerical values in the text are obtained directly using R, check the code [here]() to see the procedure. This example is an adaptation from Robert and Casella's MC methods book.
+**Obs:** numerical values in the text are obtained directly using R, check the code [here](https://github.com/aishameriane/Stuff/blob/master/MC%20integration%20examples.Rmd) to see the procedure. This example is an adaptation from Robert and Casella's MC methods book.
 
 We want to estimate the probability that a random variable $X$ with a Cauchy distribution with parameters $(0,1)$ is bigger than $2$. In other words, for $X \sim \mathcal{C}(0,1)$ we want to compute $\mathbb{P}(X \geq 2)$:
 
