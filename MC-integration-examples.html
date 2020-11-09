@@ -378,8 +378,7 @@ pacman::p_load(ggplot2,latex2exp,metRology,reshape2,gridExtra)</code></pre>
 <div id="exemple-1-integrating-a-deterministic-function" class="section level2">
 <h2>Exemple 1: Integrating a deterministic function</h2>
 <p>Assume that you want to integrate <span class="math inline">\(I = \int_1^2 \exp(\theta)d\theta\)</span> without using an analytical result.</p>
-<p>Reinterpret <span class="math inline">\(I\)</span> as an expectation with respect to <span class="math inline">\(\theta \sim U(1,2)\)</span> (chosen in a convenient way between the integration limits). We know that the density of <span class="math inline">\(Uniform[a,b]\)</span> is $\frac{1}{b-a, such that <span class="math inline">\(p_U(\theta) = 1/(2-1)\)</span>. This gives us:</p>
-<p>Reinterprete <span class="math inline">\(I\)</span> com,o uma esperan?a em rela??o a <span class="math inline">\(\theta \sim U(1,2)\)</span> (escolhida de maneira conveniente dentro dos intervalos de integra??o). Sabemos que a densidade de uma</p>
+<p>Reinterpret <span class="math inline">\(I\)</span> as an expectation with respect to <span class="math inline">\(\theta \sim U(1,2)\)</span> (chosen in a convenient way between the integration limits). We know that the density of <span class="math inline">\(Uniform[a,b]\)</span> is <span class="math inline">\(\frac{1}{b-a}\)</span>, such that <span class="math inline">\(p_U(\theta) = 1/(2-1)\)</span>. This gives us:</p>
 <p><span class="math display">\[I = \int\limits_1^2 \exp\{\theta \} d\theta = (2-1)\int\limits_1^2 \exp\{\theta \}\frac{1}{2-1}d \theta = (2-1) \mathbb{E}_{\mathcal{U}}[\exp\{\theta\}]\]</span> To approximate the integral, simulate <span class="math inline">\(S\)</span> observations of <span class="math inline">\(\theta \sim U(1,2)\)</span> and approximate <span class="math inline">\(\mathbb{E}[\exp(\theta)]\)</span> using the sample mean:</p>
 <p><span class="math display">\[\hat{I}_N = \frac{1}{N}\sum\limits_{i=1}^N \exp\left(\theta^{(i)}\right)\]</span> Using <span class="math inline">\(N=10.000\)</span> we get <span class="math inline">\(4.7080\)</span> (this value might be different depending on the seed you are using), which is a reasonable approximation for the exact value 4.6707743 (<span class="math inline">\(\exp(2)-\exp(1)\)</span>).</p>
 <pre class="r"><code># Fiz the random seed
@@ -398,8 +397,8 @@ I_n &lt;- (sum(exp_theta))/length(theta)
 I_n</code></pre>
 <pre><code>## [1] 4.708025</code></pre>
 </div>
-<div id="exemplo-2-cumulative-density-of-the-normal-distribution" class="section level2">
-<h2>Exemplo 2: Cumulative density of the normal distribution</h2>
+<div id="exemple-2-cumulative-density-of-the-normal-distribution" class="section level2">
+<h2>Exemple 2: Cumulative density of the normal distribution</h2>
 <p>The CDF of the standard normal is given by <span class="math display">\[\Phi(\theta)=\int_{-\infty}^{x}\!\frac{1}{\sqrt{2\pi}}e^{\theta^2/2}\,d\theta\]</span> but this does not have closed formula, which is an interesting candidate for us to solve using MC integration. If we sample <span class="math inline">\(\theta^i\sim N(0,1)\)</span>, then</p>
 <p><span class="math display">\[
 \Phi(t)=\int_{-\infty}^{t}\!\frac{1}{\sqrt{2\pi}}e^{\theta^2/2}\,d\theta\approx\widehat{\Phi}_N(t)=\frac{1}{N}\sum_{i=1}^{N}1{\hskip -2.5 pt}\hbox{I}(\theta^{i}\leq t).
